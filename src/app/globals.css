@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face {
+  font-family: 'Neue Machina';
+  src: url('/fonts/NeueMachina-Light.otf') format('opentype'),
+       url('/fonts/NeueMachina-Light.woff2') format('woff2'),
+       url('/fonts/NeueMachina-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Machina';
+  src: url('/fonts/NeueMachina-Regular.otf') format('opentype'),
+       url('/fonts/NeueMachina-Regular.woff2') format('woff2'),
+       url('/fonts/NeueMachina-Regular.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Neue Machina';
+  src: url('/fonts/NeueMachina-Ultrabold.otf') format('opentype'),
+       url('/fonts/NeueMachina-Ultrabold.woff2') format('woff2'),
+       url('/fonts/NeueMachina-Ultrabold.woff') format('woff');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap');
+
+:root {
+  --font-neue-machina: 'Neue Machina', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  scroll-behavior: smooth !important;
+}
+
+body {
+  font-family: var(--font-neue-machina);
+  overflow-x: hidden !important;
+}
+
+@layer components {
+  .primary_text {
+    @apply bg-primary bg-clip-text text-transparent;
+  }
+  .input {
+    @apply border-b border-[#6A6A79] bg-transparent w-full outline-none text-white flex items-center;
+  }
+}
+
+.image {
+  object-fit: contain;
+  width: 100% !important;
+  position: relative !important;
+  height: unset !important;
+}
+
+@keyframes rotate-animation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.rotateImage {
+  animation: rotate-animation 30s linear infinite;
+}
+@keyframes blink {
+  0% { opacity: 0; }
+  50% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s infinite;
+}
+
+/* styles/WalletButton.css */
+
+/* Main button styles */
+.wallet-adapter-button {
+  /*background: linear-gradient(to right, #7c3aed, #6d28d9) !important; /* purple-600 to purple-800 */
+  color: white !important;
+  border: none !important;
+  height: 40px !important;
+  border-radius: 8px !important;
+  padding: 0 1.5rem !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  /*box-shadow: 0 4px 6px -1px rgba(124, 58, 237, 0.2) !important;*/
+}
+
+.wallet-adapter-button:not([disabled]):hover {
+  background: linear-gradient(to right, #271341, #035e3e) !important; /* purple-700 to purple-900 */
+  box-shadow: 0 4px 12px -1px rgba(124, 58, 237, 0.4) !important;
+}
+
+.wallet-adapter-button:not([disabled]):active {
+  transform: scale(0.95) !important;
+}
+
+/* Dropdown styles */
+.wallet-adapter-dropdown {
+  position: relative;
+}
+
+/* Connected button styles */
+.wallet-adapter-button-trigger {
+  background: transparent !important;
+  border: 1px solid #fdfdfd !important; /* purple-600 */
+  color: #ffffff !important;
+}
+
+.wallet-adapter-button-trigger:hover {
+  background: #2c2b2b !important;
+  color: white !important;
+}
+
+/* Disable button styles */
+.wallet-adapter-button[disabled] {
+  background: #2e2e2f !important; /* purple-900 */
+  opacity: 0.6 !important;
+  cursor: not-allowed !important;
+}
+
+/* Loading state */
+.wallet-adapter-button-start-icon {
+  margin-right: 8px !important;
+}

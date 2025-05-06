@@ -1,0 +1,8 @@
+@keyframes continuousFade {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  
+  .animate-continuous-fade {
+    animation: continuousFade 3s ease-in-out infinite;
+  }

@@ -163,6 +163,11 @@ const WhitelistForm = () => {
     return registeredWallets.includes(address);
   };
   
+  // Generate a unique confirmation code
+  const generateConfirmationCode = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
   // Handle Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,13 +224,50 @@ const WhitelistForm = () => {
     });
     
     try {
-      // In a real implementation, you would:
-      // 1. Submit data to your Google Form
-      // 2. Send confirmation email
-      // For this demo, we'll simulate the API call with a timeout
+      // Generate a confirmation code
+      const confirmationCode = generateConfirmationCode();
       
-      // Simulated API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // 1. Submit to Google Form
+      // Create form data for Google Form submission
+      const googleFormData = new FormData();
+      // Replace with your actual form entry IDs
+      googleFormData.append('entry.123456789', formData.firstName);
+      googleFormData.append('entry.987654321', formData.lastName);
+      googleFormData.append('entry.111111111', formData.email);
+      googleFormData.append('entry.222222222', formData.walletAddress);
+      googleFormData.append('entry.333333333', formData.contributionAmount);
+      
+      // Submit to Google Form
+      try {
+        await fetch(GOOGLE_FORM_URL, {
+          method: 'POST',
+          body: googleFormData,
+          mode: 'no-cors'
+        });
+      } catch (error) {
+        console.error('Error submitting to Google Form:', error);
+        // Continue with the process even if Google Form submission fails
+      }
+      
+      // 2. Send confirmation email using our API endpoint
+      const emailResponse = await fetch('/api/send-confirmation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          walletAddress: formData.walletAddress,
+          contributionAmount: formData.contributionAmount,
+          confirmationCode: confirmationCode
+        }),
+      });
+      
+      if (!emailResponse.ok) {
+        throw new Error('Failed to send confirmation email');
+      }
       
       // Update registered wallets in localStorage
       const updatedWallets = [...registeredWallets, formData.walletAddress];
@@ -248,21 +290,6 @@ const WhitelistForm = () => {
         email: '',
         contributionAmount: '',
       }));
-      
-      // In a real implementation, here you would:
-      // 1. Make a POST request to your Google Form
-      // const formData = new FormData();
-      // formData.append('entry.123456789', formData.firstName); // Replace with your actual form entry IDs
-      // formData.append('entry.987654321', formData.lastName);
-      // ...
-      // await fetch(GOOGLE_FORM_URL, {
-      //   method: 'POST',
-      //   body: formData,
-      //   mode: 'no-cors'
-      // });
-      
-      // 2. Make a request to your email service to send confirmation email
-      // This would typically be done via a serverless function or API route
       
     } catch (error) {
       console.error('Error submitting form:', error);

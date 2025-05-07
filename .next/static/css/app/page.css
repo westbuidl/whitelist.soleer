@@ -1331,6 +1331,9 @@ video {
 .grid-cols-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+.grid-cols-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 .flex-col {
   flex-direction: column;
 }
@@ -1701,6 +1704,9 @@ video {
 }
 .bg-white\/10 {
   background-color: rgb(255 255 255 / 0.1);
+}
+.bg-gray-800\/80 {
+  background-color: rgb(31 41 55 / 0.8);
 }
 .bg-opacity-10 {
   --tw-bg-opacity: 0.1;

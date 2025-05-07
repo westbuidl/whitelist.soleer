@@ -1,7 +1,1 @@
-{
-  "/_app": "pages/_app.js",
-  "/_document": "pages/_document.js",
-  "/_error": "pages/_error.js",
-  "/api/send-confirmation": "pages/api/send-confirmation.js",
-  "/inbox": "pages/inbox.js"
-}
+{}

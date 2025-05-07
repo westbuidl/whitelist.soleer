@@ -18,7 +18,8 @@ import {
   Copy, 
   CheckCheck, 
   Unplug,
-  Info
+  Info,
+  Clock
 } from 'lucide-react';
 import Image from 'next/image';
 require('@solana/wallet-adapter-react-ui/styles.css');
@@ -40,9 +41,19 @@ interface WhitelistStatus {
   message: string;
 }
 
+interface TimeLeft {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
+
 const MIN_CONTRIBUTION = 0.1;
 const MAX_CONTRIBUTION = 20;
 const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/YOUR_FORM_ID/formResponse'; // Replace with your Google Form URL
+
+// Set the whitelist end date and time - modify as needed
+const WHITELIST_END_DATE = new Date('2025-06-01T23:59:59');
 
 const WhitelistWrapper = () => {
   // Set up Solana network configuration
@@ -77,6 +88,14 @@ const WhitelistForm = () => {
   const [isClient, setIsClient] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   
+  // Countdown Timer State
+  const [timeLeft, setTimeLeft] = useState<TimeLeft>({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0
+  });
+  
   // Form State
   const [formData, setFormData] = useState<FormData>({
     firstName: '',
@@ -97,6 +116,28 @@ const WhitelistForm = () => {
   // Local Storage for Registered Wallets
   const [registeredWallets, setRegisteredWallets] = useState<string[]>([]);
   
+  // Calculate time remaining
+  const calculateTimeLeft = () => {
+    const difference = WHITELIST_END_DATE.getTime() - new Date().getTime();
+    
+    if (difference > 0) {
+      setTimeLeft({
+        days: Math.floor(difference / (1000 * 60 * 60 * 24)),
+        hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
+        minutes: Math.floor((difference / 1000 / 60) % 60),
+        seconds: Math.floor((difference / 1000) % 60)
+      });
+    } else {
+      // Whitelist has ended
+      setTimeLeft({
+        days: 0,
+        hours: 0,
+        minutes: 0,
+        seconds: 0
+      });
+    }
+  };
+  
   // Animation and Client-Side Effects
   useEffect(() => {
     setIsClient(true);
@@ -111,7 +152,16 @@ const WhitelistForm = () => {
       setRegisteredWallets(JSON.parse(storedWallets));
     }
     
-    return () => clearTimeout(timer);
+    // Calculate initial time left
+    calculateTimeLeft();
+    
+    // Update countdown every second
+    const countdown = setInterval(calculateTimeLeft, 1000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearInterval(countdown);
+    };
   }, []);
   
   // Update wallet address when connected
@@ -168,9 +218,25 @@ const WhitelistForm = () => {
     return Math.floor(100000 + Math.random() * 900000).toString();
   };
 
+  // Check if whitelist has ended
+  const isWhitelistEnded = () => {
+    return new Date() > WHITELIST_END_DATE;
+  };
+
   // Handle Form Submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check if whitelist period has ended
+    if (isWhitelistEnded()) {
+      setWhitelistStatus({
+        isSubmitting: false,
+        isSuccess: false,
+        isError: true,
+        message: 'Whitelist registration period has ended',
+      });
+      return;
+    }
     
     // Form validation
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.walletAddress || !formData.contributionAmount) {
@@ -302,69 +368,95 @@ const WhitelistForm = () => {
     }
   };
   
-  // Modified WalletMultiButton wrapper
-  const CustomWalletButton = () => {
-    const { connected } = useWallet();
+  // Countdown Timer Component
+  const CountdownTimer = () => {
+    const timeUnits = [
+      { label: 'Days', value: timeLeft.days },
+      { label: 'Hours', value: timeLeft.hours },
+      { label: 'Minutes', value: timeLeft.minutes },
+      { label: 'Seconds', value: timeLeft.seconds }
+    ];
+    
+    if (isWhitelistEnded()) {
+      return (
+        <div className="bg-red-500/20 p-4 rounded-lg text-center">
+          <h3 className="text-xl font-bold text-red-400">Whitelist Registration Closed</h3>
+          <p className="text-gray-300 mt-2">The registration period has ended.</p>
+        </div>
+      );
+    }
     
     return (
-      <div className="wallet-adapter-button-wrapper">
-        <style jsx global>{`
-          .wallet-adapter-button {
-            width: 100% !important;
-            height: 48px !important;
-            padding: 0.5rem !important;
-            border-radius: 0.5rem !important;
-            font-weight: 600 !important;
-            font-size: 0.875rem !important;
-            transition: all 0.3s ease !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 0.5rem !important;
-          }
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <Clock size={16} className="text-purple-400" />
+          <span>Whitelist Registration Ends In:</span>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {timeUnits.map((unit, index) => (
+            <div key={index} className="bg-gray-800/80 p-3 rounded-lg text-center">
+              <div className="text-2xl font-bold text-gradient bg-gradient-to-r from-purple-400 to-cyan-400 text-transparent bg-clip-text">
+                {unit.value.toString().padStart(2, '0')}
+              </div>
+              <div className="text-xs text-gray-400 mt-1">{unit.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+  
+  // Wallet Button Component - Always visible
+  const WalletButtons = () => {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-2 text-sm text-gray-400">
+          <Wallet size={16} className="text-purple-400" />
+          <span>Wallet Connection</span>
+        </div>
+        <div className="wallet-adapter-button-wrapper">
+          <style jsx global>{`
+            .wallet-adapter-button {
+              width: 100% !important;
+              height: 48px !important;
+              padding: 0.5rem !important;
+              border-radius: 0.5rem !important;
+              font-weight: 600 !important;
+              font-size: 0.875rem !important;
+              transition: all 0.3s ease !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              gap: 0.5rem !important;
+            }
+            
+            .wallet-adapter-button-trigger {
+              background: linear-gradient(to right, rgb(168, 85, 247), rgb(34, 211, 238)) !important;
+            }
+    
+            .wallet-adapter-button-trigger:not([disabled]):hover {
+              opacity: 0.9 !important;
+            }
+    
+            .wallet-adapter-button.wallet-adapter-button-trigger:before {
+              content: '🔗 ';
+            }
+          `}</style>
           
-          .wallet-adapter-button-trigger {
-            background: linear-gradient(to right, rgb(168, 85, 247), rgb(34, 211, 238)) !important;
-          }
-  
-          .wallet-adapter-button-trigger:not([disabled]):hover {
-            opacity: 0.9 !important;
-          }
-  
-          .wallet-adapter-button.wallet-adapter-button-trigger:before {
-            content: '${connected ? '' : '🔗 '}';
-          }
-  
-          .wallet-adapter-button-disconnect {
-            background: rgb(239 68 68 / 0.8) !important;
-            color: white !important;
-          }
-  
-          .wallet-adapter-button-disconnect:hover {
-            background: rgb(239 68 68) !important;
-          }
-  
-          .wallet-adapter-button-disconnect:before {
-            content: '🔓';
-            margin-right: 0.5rem;
-          }
-  
-          .wallet-adapter-button-disconnect span {
-            display: inline !important;
-            visibility: visible !important;
-          }
-        `}</style>
-        {!wallet ? (
-          <WalletMultiButton />
-        ) : (
-          <button
-            onClick={disconnect}
-            className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white py-4 rounded-lg font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-          >
-            <Unplug size={20} />
-            Disconnect Wallet
-          </button>
-        )}
+          {/* Always show the connect button when not connected */}
+          {!publicKey && <WalletMultiButton />}
+          
+          {/* Always show disconnect button when connected */}
+          {publicKey && (
+            <button
+              onClick={disconnect}
+              className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white py-4 rounded-lg font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+            >
+              <Unplug size={20} />
+              Disconnect Wallet
+            </button>
+          )}
+        </div>
       </div>
     );
   };
@@ -501,12 +593,11 @@ const WhitelistForm = () => {
                 </p>
               </div>
               
-              {/* Connect Wallet Button */}
-              {!publicKey && (
-                <div className="my-8">
-                  <CustomWalletButton />
-                </div>
-              )}
+              {/* Countdown Timer */}
+              <CountdownTimer />
+              
+              {/* Wallet Button - Always visible */}
+              <WalletButtons />
               
               {/* Whitelist Form */}
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -579,9 +670,9 @@ const WhitelistForm = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={!publicKey || whitelistStatus.isSubmitting || isWalletRegistered(formData.walletAddress)}
+                  disabled={!publicKey || whitelistStatus.isSubmitting || isWalletRegistered(formData.walletAddress) || isWhitelistEnded()}
                   className={`w-full py-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2
-                    ${publicKey && !whitelistStatus.isSubmitting && !isWalletRegistered(formData.walletAddress)
+                    ${publicKey && !whitelistStatus.isSubmitting && !isWalletRegistered(formData.walletAddress) && !isWhitelistEnded()
                       ? 'bg-gradient-to-r from-purple-500 to-cyan-400 text-white hover:opacity-90'
                       : 'bg-gray-700 text-gray-400 cursor-not-allowed'}`}
                 >
@@ -595,6 +686,8 @@ const WhitelistForm = () => {
                       <CheckCircle size={20} />
                       Already Registered
                     </>
+                  ) : isWhitelistEnded() ? (
+                    'Registration Closed'
                   ) : !publicKey ? (
                     'Connect Wallet First'
                   ) : (

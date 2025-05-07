@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
@@ -78,6 +78,204 @@ const WhitelistWrapper = () => {
   );
 };
 
+// Move component definitions outside the main component to prevent recreation on each render
+const CountdownTimerComponent = ({ 
+  timeLeft, 
+  isWhitelistEnded 
+}: { 
+  timeLeft: TimeLeft, 
+  isWhitelistEnded: () => boolean 
+}) => {
+  const timeUnits = [
+    { label: 'Days', value: timeLeft.days },
+    { label: 'Hours', value: timeLeft.hours },
+    { label: 'Minutes', value: timeLeft.minutes },
+    { label: 'Seconds', value: timeLeft.seconds }
+  ];
+  
+  if (isWhitelistEnded()) {
+    return (
+      <div className="bg-red-500/20 p-4 rounded-lg text-center">
+        <h3 className="text-xl font-bold text-red-400">Whitelist Registration Closed</h3>
+        <p className="text-gray-300 mt-2">The registration period has ended.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm text-gray-400">
+        <Clock size={16} className="text-purple-400" />
+        <span>Whitelist Registration Ends In:</span>
+      </div>
+      <div className="grid grid-cols-4 gap-2">
+        {timeUnits.map((unit, index) => (
+          <div key={index} className="bg-gray-800/80 p-3 rounded-lg text-center">
+            <div className="text-2xl font-bold text-gradient bg-gradient-to-r from-purple-400 to-cyan-400 text-transparent bg-clip-text">
+              {unit.value.toString().padStart(2, '0')}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">{unit.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const CountdownTimer = React.memo(CountdownTimerComponent);
+
+const WalletButtonsComponent = ({ 
+  publicKey, 
+  disconnect 
+}: { 
+  publicKey: any, 
+  disconnect: () => void 
+}) => {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm text-gray-400">
+        <Wallet size={16} className="text-purple-400" />
+        <span>Wallet Connection</span>
+      </div>
+      <div className="wallet-adapter-button-wrapper">
+        <style jsx global>{`
+          .wallet-adapter-button {
+            width: 100% !important;
+            height: 48px !important;
+            padding: 0.5rem !important;
+            border-radius: 0.5rem !important;
+            font-weight: 600 !important;
+            font-size: 0.875rem !important;
+            transition: all 0.3s ease !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.5rem !important;
+          }
+          
+          .wallet-adapter-button-trigger {
+            background: linear-gradient(to right, rgb(168, 85, 247), rgb(34, 211, 238)) !important;
+          }
+  
+          .wallet-adapter-button-trigger:not([disabled]):hover {
+            opacity: 0.9 !important;
+          }
+  
+          .wallet-adapter-button.wallet-adapter-button-trigger:before {
+            content: '🔗 ';
+          }
+        `}</style>
+        
+        {/* Always show the connect button when not connected */}
+        {!publicKey && <WalletMultiButton />}
+        
+        {/* Always show disconnect button when connected */}
+        {publicKey && (
+          <button
+            onClick={disconnect}
+            className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white py-4 rounded-lg font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+          >
+            <Unplug size={20} />
+            Disconnect Wallet
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const WalletButtons = React.memo(WalletButtonsComponent);
+
+const FormFieldComponent = ({ 
+  icon, 
+  label, 
+  name,
+  type = 'text',
+  value,
+  onChange,
+  placeholder,
+  readOnly = false,
+  min,
+  step,
+  onCopy,
+  isCopied
+}: {
+  icon: React.ReactNode;
+  label: string;
+  name: string;
+  type?: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  placeholder: string;
+  readOnly?: boolean;
+  min?: number;
+  step?: string;
+  onCopy?: () => void;
+  isCopied?: boolean;
+}) => (
+  <div className="space-y-2">
+    <label className="text-sm text-gray-400 flex items-center gap-2">
+      {icon}
+      {label}
+    </label>
+    <div className="relative">
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        readOnly={readOnly}
+        min={min}
+        step={step}
+        className={`w-full bg-gray-700 rounded-lg p-3 border ${
+          readOnly ? 'bg-gray-800' : ''
+        } border-purple-500/20 focus:border-purple-500 transition-colors ${
+          readOnly && name === 'walletAddress' ? 'pr-10' : ''
+        }`}
+      />
+      {readOnly && name === 'walletAddress' && value && onCopy && (
+        <button
+          type="button"
+          onClick={onCopy}
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 transition-colors"
+        >
+          {isCopied ? <CheckCheck size={18} /> : <Copy size={18} />}
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+const FormField = React.memo(FormFieldComponent);
+
+const StatusMessageComponent = ({ status }: { status: WhitelistStatus }) => {
+  if (!status.isSubmitting && !status.isSuccess && !status.isError) return null;
+  
+  let icon = null;
+  let bgColor = '';
+  
+  if (status.isSubmitting) {
+    icon = <Loader2 className="animate-spin" size={20} />;
+    bgColor = 'bg-blue-500/20';
+  } else if (status.isSuccess) {
+    icon = <CheckCircle size={20} />;
+    bgColor = 'bg-green-500/20';
+  } else if (status.isError) {
+    icon = <AlertCircle size={20} />;
+    bgColor = 'bg-red-500/20';
+  }
+  
+  return (
+    <div className={`flex items-center gap-3 p-4 rounded-lg ${bgColor} text-sm`}>
+      {icon}
+      <span>{status.message}</span>
+    </div>
+  );
+};
+
+const StatusMessage = React.memo(StatusMessageComponent);
+
 const WhitelistForm = () => {
   // Wallet State
   const { wallet, publicKey, disconnect } = useWallet();
@@ -116,8 +314,8 @@ const WhitelistForm = () => {
   // Local Storage for Registered Wallets
   const [registeredWallets, setRegisteredWallets] = useState<string[]>([]);
   
-  // Calculate time remaining
-  const calculateTimeLeft = () => {
+  // Calculate time remaining - defined with useCallback to prevent recreation
+  const calculateTimeLeft = useCallback(() => {
     const difference = WHITELIST_END_DATE.getTime() - new Date().getTime();
     
     let newTimeLeft = { ...timeLeft };
@@ -139,14 +337,13 @@ const WhitelistForm = () => {
       };
     }
     
-    // Only update state if there's an actual change to prevent unnecessary re-renders
     if (newTimeLeft.days !== timeLeft.days || 
         newTimeLeft.hours !== timeLeft.hours || 
         newTimeLeft.minutes !== timeLeft.minutes || 
         newTimeLeft.seconds !== timeLeft.seconds) {
       setTimeLeft(newTimeLeft);
     }
-  };
+  }, [timeLeft]);
   
   // Animation and Client-Side Effects - Initial setup
   useEffect(() => {
@@ -167,7 +364,12 @@ const WhitelistForm = () => {
     return () => clearTimeout(timer);
   }, []);
   
-
+  // Set up countdown timer
+  useEffect(() => {
+    calculateTimeLeft();
+    const timer = setInterval(calculateTimeLeft, 1000);
+    return () => clearInterval(timer);
+  }, [calculateTimeLeft]);
   
   // Update wallet address when connected
   useEffect(() => {
@@ -184,19 +386,14 @@ const WhitelistForm = () => {
     }
   }, [publicKey]);
 
-  // Handle Form Input Changes - optimized to properly handle input without focus issues
-  const handleInputChange = React.useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const { name, value } = e.target;
+  // Handle Form Input Changes - prevent focus loss by using stable reference functions
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  }, []);
   
-      // Update form data without restrictive validation during typing
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    },
-    []
-  );
-  
-  // Handle Copy Wallet Address - memoized to prevent recreation on every render
-  const handleCopyAddress = React.useCallback(async () => {
+  // Handle Copy Wallet Address - stable reference
+  const handleCopyAddress = useCallback(async () => {
     if (formData.walletAddress) {
       try {
         await navigator.clipboard.writeText(formData.walletAddress);
@@ -206,31 +403,31 @@ const WhitelistForm = () => {
         console.error('Failed to copy address:', err);
       }
     }
-  }, []);
+  }, [formData.walletAddress]);
   
-  // Check if wallet is already registered - memoized to optimize performance
-  const isWalletRegistered = React.useCallback((address: string) => {
+  // Check if wallet is already registered - stable reference
+  const isWalletRegistered = useCallback((address: string) => {
     return registeredWallets.includes(address);
   }, [registeredWallets]);
   
   // Generate a unique confirmation code
-  const generateConfirmationCode = React.useCallback(() => {
+  const generateConfirmationCode = useCallback(() => {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }, []);
 
-  // Check if whitelist has ended - memoized to prevent recalculation on every render
-  const isWhitelistEnded = React.useCallback(() => {
+  // Check if whitelist has ended - stable reference
+  const isWhitelistEnded = useCallback(() => {
     return new Date() > WHITELIST_END_DATE;
   }, []);
 
-  const validateContributionAmount = (value: string): boolean => {
+  const validateContributionAmount = useCallback((value: string): boolean => {
     if (value === '') return true; // Allow empty input during typing
     const numValue = parseFloat(value);
     return !isNaN(numValue) && numValue >= 0 && /^\d*\.?\d{0,4}$/.test(value);
-  };
+  }, []);
 
-  // Handle Form Submission - memoized to prevent recreation on every render
-  const handleSubmit = React.useCallback(
+  // Handle Form Submission - stable reference
+  const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
   
@@ -387,185 +584,8 @@ const WhitelistForm = () => {
         });
       }
     },
-    [formData, registeredWallets, isWhitelistEnded, generateConfirmationCode]
+    [formData, registeredWallets, isWhitelistEnded, generateConfirmationCode, validateContributionAmount, isWalletRegistered]
   );
-  
-  // Memoized Countdown Timer Component to prevent unnecessary re-renders
-  const CountdownTimer = React.memo(() => {
-    const timeUnits = [
-      { label: 'Days', value: timeLeft.days },
-      { label: 'Hours', value: timeLeft.hours },
-      { label: 'Minutes', value: timeLeft.minutes },
-      { label: 'Seconds', value: timeLeft.seconds }
-    ];
-    
-    if (isWhitelistEnded()) {
-      return (
-        <div className="bg-red-500/20 p-4 rounded-lg text-center">
-          <h3 className="text-xl font-bold text-red-400">Whitelist Registration Closed</h3>
-          <p className="text-gray-300 mt-2">The registration period has ended.</p>
-        </div>
-      );
-    }
-    
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Clock size={16} className="text-purple-400" />
-          <span>Whitelist Registration Ends In:</span>
-        </div>
-        <div className="grid grid-cols-4 gap-2">
-          {timeUnits.map((unit, index) => (
-            <div key={index} className="bg-gray-800/80 p-3 rounded-lg text-center">
-              <div className="text-2xl font-bold text-gradient bg-gradient-to-r from-purple-400 to-cyan-400 text-transparent bg-clip-text">
-                {unit.value.toString().padStart(2, '0')}
-              </div>
-              <div className="text-xs text-gray-400 mt-1">{unit.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  });
-  
-  // Wallet Button Component - Always visible, memoized to prevent re-renders
-  const WalletButtons = React.memo(() => {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Wallet size={16} className="text-purple-400" />
-          <span>Wallet Connection</span>
-        </div>
-        <div className="wallet-adapter-button-wrapper">
-          <style jsx global>{`
-            .wallet-adapter-button {
-              width: 100% !important;
-              height: 48px !important;
-              padding: 0.5rem !important;
-              border-radius: 0.5rem !important;
-              font-weight: 600 !important;
-              font-size: 0.875rem !important;
-              transition: all 0.3s ease !important;
-              display: flex !important;
-              align-items: center !important;
-              justify-content: center !important;
-              gap: 0.5rem !important;
-            }
-            
-            .wallet-adapter-button-trigger {
-              background: linear-gradient(to right, rgb(168, 85, 247), rgb(34, 211, 238)) !important;
-            }
-    
-            .wallet-adapter-button-trigger:not([disabled]):hover {
-              opacity: 0.9 !important;
-            }
-    
-            .wallet-adapter-button.wallet-adapter-button-trigger:before {
-              content: '🔗 ';
-            }
-          `}</style>
-          
-          {/* Always show the connect button when not connected */}
-          {!publicKey && <WalletMultiButton />}
-          
-          {/* Always show disconnect button when connected */}
-          {publicKey && (
-            <button
-              onClick={disconnect}
-              className="w-full bg-gradient-to-r from-red-500 to-pink-500 text-white py-4 rounded-lg font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-            >
-              <Unplug size={20} />
-              Disconnect Wallet
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  },);
-  
-  // Form Input Field Component - Memoized to prevent re-renders
-  const FormField = React.memo(({ 
-    icon, 
-    label, 
-    name,
-    type = 'text',
-    value,
-    onChange,
-    placeholder,
-    readOnly = false,
-    min,
-    step,
-  }: {
-    icon: React.ReactNode;
-    label: string;
-    name: string;
-    type?: string;
-    value: string;
-    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-    placeholder: string;
-    readOnly?: boolean;
-    min?: number;
-    step?: string;
-  }) => (
-    <div className="space-y-2">
-      <label className="text-sm text-gray-400 flex items-center gap-2">
-        {icon}
-        {label}
-      </label>
-      <div className="relative">
-        <input
-          type={type}
-          name={name}
-          value={value}
-          onChange={onChange}
-          placeholder={placeholder}
-          readOnly={readOnly}
-          min={min}
-          step={step}
-          className={`w-full bg-gray-700 rounded-lg p-3 border ${
-            readOnly ? 'bg-gray-800' : ''
-          } border-purple-500/20 focus:border-purple-500 transition-colors ${
-            readOnly && name === 'walletAddress' ? 'pr-10' : ''
-          }`}
-        />
-        {readOnly && name === 'walletAddress' && value && (
-          <button
-            type="button"
-            onClick={handleCopyAddress}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-purple-400 hover:text-purple-300 transition-colors"
-          >
-            {isCopied ? <CheckCheck size={18} /> : <Copy size={18} />}
-          </button>
-        )}
-      </div>
-    </div>
-  ),);
-  
-  // Status Message Component - Memoized to prevent re-renders
-  const StatusMessage = React.memo(({ status }: { status: WhitelistStatus }) => {
-    if (!status.isSubmitting && !status.isSuccess && !status.isError) return null;
-    
-    let icon = null;
-    let bgColor = '';
-    
-    if (status.isSubmitting) {
-      icon = <Loader2 className="animate-spin" size={20} />;
-      bgColor = 'bg-blue-500/20';
-    } else if (status.isSuccess) {
-      icon = <CheckCircle size={20} />;
-      bgColor = 'bg-green-500/20';
-    } else if (status.isError) {
-      icon = <AlertCircle size={20} />;
-      bgColor = 'bg-red-500/20';
-    }
-    
-    return (
-      <div className={`flex items-center gap-3 p-4 rounded-lg ${bgColor} text-sm`}>
-        {icon}
-        <span>{status.message}</span>
-      </div>
-    );
-  }, );
   
   // Early return for SSR
   if (!isClient) {
@@ -616,10 +636,16 @@ const WhitelistForm = () => {
               </div>
               
               {/* Countdown Timer */}
-              <CountdownTimer />
+              <CountdownTimer 
+                timeLeft={timeLeft} 
+                isWhitelistEnded={isWhitelistEnded} 
+              />
               
               {/* Wallet Button - Always visible */}
-              <WalletButtons />
+              <WalletButtons 
+                publicKey={publicKey} 
+                disconnect={disconnect} 
+              />
               
               {/* Whitelist Form */}
               <form onSubmit={handleSubmit} className="space-y-6">
@@ -660,6 +686,8 @@ const WhitelistForm = () => {
                   onChange={handleInputChange}
                   placeholder="Connect your wallet to auto-fill"
                   readOnly={!!publicKey}
+                  onCopy={handleCopyAddress}
+                  isCopied={isCopied}
                 />
                 
                 <FormField 

@@ -120,28 +120,40 @@ const WhitelistForm = () => {
   const calculateTimeLeft = () => {
     const difference = WHITELIST_END_DATE.getTime() - new Date().getTime();
     
+    let newTimeLeft = { ...timeLeft };
+    
     if (difference > 0) {
-      setTimeLeft({
+      newTimeLeft = {
         days: Math.floor(difference / (1000 * 60 * 60 * 24)),
         hours: Math.floor((difference / (1000 * 60 * 60)) % 24),
         minutes: Math.floor((difference / 1000 / 60) % 60),
         seconds: Math.floor((difference / 1000) % 60)
-      });
+      };
     } else {
       // Whitelist has ended
-      setTimeLeft({
+      newTimeLeft = {
         days: 0,
         hours: 0,
         minutes: 0,
         seconds: 0
-      });
+      };
+    }
+    
+    // Only update state if there's an actual change to prevent unnecessary re-renders
+    if (newTimeLeft.days !== timeLeft.days || 
+        newTimeLeft.hours !== timeLeft.hours || 
+        newTimeLeft.minutes !== timeLeft.minutes || 
+        newTimeLeft.seconds !== timeLeft.seconds) {
+      setTimeLeft(newTimeLeft);
     }
   };
   
-  // Animation and Client-Side Effects
+  // Animation and Client-Side Effects - Initial setup
   useEffect(() => {
     setIsClient(true);
     setIsMounted(true);
+    
+    // Slight delay to ensure client hydration before showing the UI
     const timer = setTimeout(() => {
       setIsVisible(true);
     }, 100);
@@ -152,17 +164,10 @@ const WhitelistForm = () => {
       setRegisteredWallets(JSON.parse(storedWallets));
     }
     
-    // Calculate initial time left
-    calculateTimeLeft();
-    
-    // Update countdown every second
-    const countdown = setInterval(calculateTimeLeft, 1000);
-    
-    return () => {
-      clearTimeout(timer);
-      clearInterval(countdown);
-    };
+    return () => clearTimeout(timer);
   }, []);
+  
+
   
   // Update wallet address when connected
   useEffect(() => {
@@ -179,24 +184,19 @@ const WhitelistForm = () => {
     }
   }, [publicKey]);
 
-  // Handle Form Input Changes
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    
-    // Special handling for contribution amount
-    if (name === 'contributionAmount') {
-      // Allow empty string or valid numbers with up to 4 decimal places
-      if (value === '' || /^\d*\.?\d{0,4}$/.test(value)) {
-        setFormData(prev => ({ ...prev, [name]: value }));
-      }
-      return;
-    }
-    
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
+  // Handle Form Input Changes - optimized to properly handle input without focus issues
+  const handleInputChange = React.useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
   
-  // Handle Copy Wallet Address
-  const handleCopyAddress = async () => {
+      // Update form data without restrictive validation during typing
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    },
+    []
+  );
+  
+  // Handle Copy Wallet Address - memoized to prevent recreation on every render
+  const handleCopyAddress = React.useCallback(async () => {
     if (formData.walletAddress) {
       try {
         await navigator.clipboard.writeText(formData.walletAddress);
@@ -206,170 +206,192 @@ const WhitelistForm = () => {
         console.error('Failed to copy address:', err);
       }
     }
-  };
+  }, []);
   
-  // Check if wallet is already registered
-  const isWalletRegistered = (address: string) => {
+  // Check if wallet is already registered - memoized to optimize performance
+  const isWalletRegistered = React.useCallback((address: string) => {
     return registeredWallets.includes(address);
-  };
+  }, [registeredWallets]);
   
   // Generate a unique confirmation code
-  const generateConfirmationCode = () => {
+  const generateConfirmationCode = React.useCallback(() => {
     return Math.floor(100000 + Math.random() * 900000).toString();
-  };
+  }, []);
 
-  // Check if whitelist has ended
-  const isWhitelistEnded = () => {
+  // Check if whitelist has ended - memoized to prevent recalculation on every render
+  const isWhitelistEnded = React.useCallback(() => {
     return new Date() > WHITELIST_END_DATE;
+  }, []);
+
+  const validateContributionAmount = (value: string): boolean => {
+    if (value === '') return true; // Allow empty input during typing
+    const numValue = parseFloat(value);
+    return !isNaN(numValue) && numValue >= 0 && /^\d*\.?\d{0,4}$/.test(value);
   };
 
-  // Handle Form Submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Check if whitelist period has ended
-    if (isWhitelistEnded()) {
-      setWhitelistStatus({
-        isSubmitting: false,
-        isSuccess: false,
-        isError: true,
-        message: 'Whitelist registration period has ended',
-      });
-      return;
-    }
-    
-    // Form validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.walletAddress || !formData.contributionAmount) {
-      setWhitelistStatus({
-        isSubmitting: false,
-        isSuccess: false,
-        isError: true,
-        message: 'Please fill in all fields',
-      });
-      return;
-    }
-    
-    const contributionValue = parseFloat(formData.contributionAmount);
-    if (isNaN(contributionValue) || contributionValue < MIN_CONTRIBUTION) {
-      setWhitelistStatus({
-        isSubmitting: false,
-        isSuccess: false,
-        isError: true,
-        message: `Contribution must be at least ${MIN_CONTRIBUTION} SOL`,
-      });
-      return;
-    }
-    
-    if (contributionValue > MAX_CONTRIBUTION) {
-      setWhitelistStatus({
-        isSubmitting: false,
-        isSuccess: false,
-        isError: true,
-        message: `Contribution cannot exceed ${MAX_CONTRIBUTION} SOL`,
-      });
-      return;
-    }
-    
-    // Check if wallet is already registered
-    if (isWalletRegistered(formData.walletAddress)) {
-      setWhitelistStatus({
-        isSubmitting: false,
-        isSuccess: false,
-        isError: true,
-        message: 'This wallet address is already registered',
-      });
-      return;
-    }
-    
-    // Begin submission
-    setWhitelistStatus({
-      isSubmitting: true,
-      isSuccess: false,
-      isError: false,
-      message: 'Submitting your registration...',
-    });
-    
-    try {
-      // Generate a confirmation code
-      const confirmationCode = generateConfirmationCode();
-      
-      // 1. Submit to Google Form
-      // Create form data for Google Form submission
-      const googleFormData = new FormData();
-      // Replace with your actual form entry IDs
-      googleFormData.append('entry.123456789', formData.firstName);
-      googleFormData.append('entry.987654321', formData.lastName);
-      googleFormData.append('entry.111111111', formData.email);
-      googleFormData.append('entry.222222222', formData.walletAddress);
-      googleFormData.append('entry.333333333', formData.contributionAmount);
-      
-      // Submit to Google Form
-      try {
-        await fetch(GOOGLE_FORM_URL, {
-          method: 'POST',
-          body: googleFormData,
-          mode: 'no-cors'
-        });
-      } catch (error) {
-        console.error('Error submitting to Google Form:', error);
-        // Continue with the process even if Google Form submission fails
-      }
-      
-      // 2. Send confirmation email using our API endpoint
-      const emailResponse = await fetch('/api/send-confirmation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
-          walletAddress: formData.walletAddress,
-          contributionAmount: formData.contributionAmount,
-          confirmationCode: confirmationCode
-        }),
-      });
-      
-      if (!emailResponse.ok) {
-        throw new Error('Failed to send confirmation email');
-      }
-      
-      // Update registered wallets in localStorage
-      const updatedWallets = [...registeredWallets, formData.walletAddress];
-      localStorage.setItem('registeredWallets', JSON.stringify(updatedWallets));
-      setRegisteredWallets(updatedWallets);
-      
-      // Success state
-      setWhitelistStatus({
-        isSubmitting: false,
-        isSuccess: true,
-        isError: false,
-        message: 'Registration successful! Check your email for confirmation.',
-      });
-      
-      // Reset form after success (except wallet address)
-      setFormData(prev => ({
-        ...prev,
-        firstName: '',
-        lastName: '',
-        email: '',
-        contributionAmount: '',
-      }));
-      
-    } catch (error) {
-      console.error('Error submitting form:', error);
-      setWhitelistStatus({
-        isSubmitting: false,
-        isSuccess: false,
-        isError: true,
-        message: 'Something went wrong. Please try again.',
-      });
-    }
-  };
+  // Handle Form Submission - memoized to prevent recreation on every render
+  const handleSubmit = React.useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
   
-  // Countdown Timer Component
-  const CountdownTimer = () => {
+      // Check if whitelist period has ended
+      if (isWhitelistEnded()) {
+        setWhitelistStatus({
+          isSubmitting: false,
+          isSuccess: false,
+          isError: true,
+          message: 'Whitelist registration period has ended',
+        });
+        return;
+      }
+  
+      // Form validation
+      if (
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.email ||
+        !formData.walletAddress ||
+        !formData.contributionAmount
+      ) {
+        setWhitelistStatus({
+          isSubmitting: false,
+          isSuccess: false,
+          isError: true,
+          message: 'Please fill in all fields',
+        });
+        return;
+      }
+  
+      const contributionValue = parseFloat(formData.contributionAmount);
+      if (isNaN(contributionValue) || !validateContributionAmount(formData.contributionAmount)) {
+        setWhitelistStatus({
+          isSubmitting: false,
+          isSuccess: false,
+          isError: true,
+          message: 'Please enter a valid contribution amount',
+        });
+        return;
+      }
+  
+      if (contributionValue < MIN_CONTRIBUTION) {
+        setWhitelistStatus({
+          isSubmitting: false,
+          isSuccess: false,
+          isError: true,
+          message: `Contribution must be at least ${MIN_CONTRIBUTION} SOL`,
+        });
+        return;
+      }
+  
+      if (contributionValue > MAX_CONTRIBUTION) {
+        setWhitelistStatus({
+          isSubmitting: false,
+          isSuccess: false,
+          isError: true,
+          message: `Contribution cannot exceed ${MAX_CONTRIBUTION} SOL`,
+        });
+        return;
+      }
+  
+      // Check if wallet is already registered
+      if (isWalletRegistered(formData.walletAddress)) {
+        setWhitelistStatus({
+          isSubmitting: false,
+          isSuccess: false,
+          isError: true,
+          message: 'This wallet address is already registered',
+        });
+        return;
+      }
+  
+      // Begin submission
+      setWhitelistStatus({
+        isSubmitting: true,
+        isSuccess: false,
+        isError: false,
+        message: 'Submitting your registration...',
+      });
+  
+      try {
+        // Generate a confirmation code
+        const confirmationCode = generateConfirmationCode();
+  
+        // 1. Submit to Google Form
+        const googleFormData = new FormData();
+        // Replace with your actual form entry IDs
+        googleFormData.append('entry.123456789', formData.firstName);
+        googleFormData.append('entry.987654321', formData.lastName);
+        googleFormData.append('entry.111111111', formData.email);
+        googleFormData.append('entry.222222222', formData.walletAddress);
+        googleFormData.append('entry.333333333', formData.contributionAmount);
+  
+        try {
+          await fetch(GOOGLE_FORM_URL, {
+            method: 'POST',
+            body: googleFormData,
+            mode: 'no-cors',
+          });
+        } catch (error) {
+          console.error('Error submitting to Google Form:', error);
+          // Continue with the process even if Google Form submission fails
+        }
+  
+        // 2. Send confirmation email using our API endpoint
+        const emailResponse = await fetch('/api/send-confirmation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            walletAddress: formData.walletAddress,
+            contributionAmount: formData.contributionAmount,
+            confirmationCode: confirmationCode,
+          }),
+        });
+  
+        if (!emailResponse.ok) {
+          throw new Error('Failed to send confirmation email');
+        }
+  
+        // Update registered wallets in localStorage
+        const updatedWallets = [...registeredWallets, formData.walletAddress];
+        localStorage.setItem('registeredWallets', JSON.stringify(updatedWallets));
+        setRegisteredWallets(updatedWallets);
+  
+        // Success state
+        setWhitelistStatus({
+          isSubmitting: false,
+          isSuccess: true,
+          isError: false,
+          message: 'Registration successful! Check your email for confirmation.',
+        });
+  
+        // Reset form after success (except wallet address)
+        setFormData((prev) => ({
+          ...prev,
+          firstName: '',
+          lastName: '',
+          email: '',
+          contributionAmount: '',
+        }));
+      } catch (error) {
+        console.error('Error submitting form:', error);
+        setWhitelistStatus({
+          isSubmitting: false,
+          isSuccess: false,
+          isError: true,
+          message: 'Something went wrong. Please try again.',
+        });
+      }
+    },
+    [formData, registeredWallets, isWhitelistEnded, generateConfirmationCode]
+  );
+  
+  // Memoized Countdown Timer Component to prevent unnecessary re-renders
+  const CountdownTimer = React.memo(() => {
     const timeUnits = [
       { label: 'Days', value: timeLeft.days },
       { label: 'Hours', value: timeLeft.hours },
@@ -404,10 +426,10 @@ const WhitelistForm = () => {
         </div>
       </div>
     );
-  };
+  });
   
-  // Wallet Button Component - Always visible
-  const WalletButtons = () => {
+  // Wallet Button Component - Always visible, memoized to prevent re-renders
+  const WalletButtons = React.memo(() => {
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2 text-sm text-gray-400">
@@ -459,10 +481,10 @@ const WhitelistForm = () => {
         </div>
       </div>
     );
-  };
+  },);
   
-  // Form Input Field Component
-  const FormField = ({ 
+  // Form Input Field Component - Memoized to prevent re-renders
+  const FormField = React.memo(({ 
     icon, 
     label, 
     name,
@@ -517,10 +539,10 @@ const WhitelistForm = () => {
         )}
       </div>
     </div>
-  );
+  ),);
   
-  // Status Message Component
-  const StatusMessage = ({ status }: { status: WhitelistStatus }) => {
+  // Status Message Component - Memoized to prevent re-renders
+  const StatusMessage = React.memo(({ status }: { status: WhitelistStatus }) => {
     if (!status.isSubmitting && !status.isSuccess && !status.isError) return null;
     
     let icon = null;
@@ -543,7 +565,7 @@ const WhitelistForm = () => {
         <span>{status.message}</span>
       </div>
     );
-  };
+  }, );
   
   // Early return for SSR
   if (!isClient) {

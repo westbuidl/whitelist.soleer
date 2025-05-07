@@ -50,7 +50,7 @@ interface TimeLeft {
 
 const MIN_CONTRIBUTION = 0.1;
 const MAX_CONTRIBUTION = 20;
-const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/YOUR_FORM_ID/formResponse'; // Replace with your Google Form URL
+const GOOGLE_FORM_URL = 'https://script.google.com/macros/s/AKfycbxOC6c5RqyyoC1LqinrHsSPrIZBZ-4PxFjKqT-ahViLkZQJhtJGy43_kz8nkGGqppaOKw/exec'; // Replace with your Google Form URL
 
 // Set the whitelist end date and time - modify as needed
 const WHITELIST_END_DATE = new Date('2025-06-01T23:59:59');
@@ -516,11 +516,11 @@ const WhitelistForm = () => {
         // 1. Submit to Google Form
         const googleFormData = new FormData();
         // Replace with your actual form entry IDs
-        googleFormData.append('entry.123456789', formData.firstName);
-        googleFormData.append('entry.987654321', formData.lastName);
-        googleFormData.append('entry.111111111', formData.email);
-        googleFormData.append('entry.222222222', formData.walletAddress);
-        googleFormData.append('entry.333333333', formData.contributionAmount);
+        googleFormData.append('firstName', formData.firstName);
+        googleFormData.append('lastName', formData.lastName);
+        googleFormData.append('email', formData.email);
+        googleFormData.append('walletAddress', formData.walletAddress);
+        googleFormData.append('contributionAmount', formData.contributionAmount);
   
         try {
           await fetch(GOOGLE_FORM_URL, {

@@ -53,7 +53,7 @@ const MAX_CONTRIBUTION = 20;
 const GOOGLE_FORM_URL = 'https://script.google.com/macros/s/AKfycbxOC6c5RqyyoC1LqinrHsSPrIZBZ-4PxFjKqT-ahViLkZQJhtJGy43_kz8nkGGqppaOKw/exec'; // Replace with your Google Form URL
 
 // Set the whitelist end date and time - modify as needed
-const WHITELIST_END_DATE = new Date('2025-06-01T23:59:59');
+const WHITELIST_END_DATE = new Date('2025-05-15T23:59:59');
 
 const WhitelistWrapper = () => {
   // Set up Solana network configuration
